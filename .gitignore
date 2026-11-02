@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+auth.json
+build/
+dist/
+.coverage
+*.egg-info/
+source-snapshot.json
+migration-audit.json
+discovery.json
+plan.json
+review.template.json

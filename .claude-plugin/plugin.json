@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "smartsheet-to-sigma",
+  "displayName": "Smartsheet → Sigma",
+  "version": "0.1.0",
+  "description": "Audit and perform one-time migrations of Smartsheet assets or workspaces into editable Sigma workbooks and data models.",
+  "author": {
+    "name": "Thomas Wells"
+  },
+  "license": "MIT",
+  "keywords": [
+    "smartsheet",
+    "input-tables",
+    "planning",
+    "sigma",
+    "migration",
+    "bi",
+    "converter"
+  ]
+}

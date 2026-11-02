@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "smartsheet",
+  "capturedAt": "2026-11-02T12:00:00+00:00",
+  "scope": "asset",
+  "source": {
+    "id": "1001",
+    "type": "sheet",
+    "url": "https://app.smartsheet.com/sheets/1001"
+  },
+  "assets": [
+    {
+      "id": "1001",
+      "type": "sheet",
+      "name": "Project Forecast",
+      "path": "",
+      "featureErrors": [],
+      "raw": {
+        "id": 1001,
+        "name": "Project Forecast",
+        "accessLevel": "OWNER",
+        "ganttEnabled": true,
+        "columns": [
+          {
+            "id": 11,
+            "title": "Task",
+            "type": "TEXT_NUMBER",
+            "primary": true
+          },
+          {
+            "id": 12,
+            "title": "Amount",
+            "type": "TEXT_NUMBER"
+          },
+          {
+            "id": 13,
+            "title": "Status",
+            "type": "PICKLIST",
+            "options": [
+              "Open",
+              "Done"
+            ]
+          },
+          {
+            "id": 14,
+            "title": "Double Amount",
+            "type": "TEXT_NUMBER"
+          },
+          {
+            "id": 15,
+            "title": "Rollup",
+            "type": "TEXT_NUMBER"
+          }
+        ],
+        "rows": [
+          {
+            "id": 101,
+            "cells": [
+              {
+                "columnId": 11,
+                "value": "Program"
+              },
+              {
+                "columnId": 12,
+                "value": 30
+              },
+              {
+                "columnId": 13,
+                "value": "Open"
+              },
+              {
+                "columnId": 14,
+                "formula": "=[Amount]@row * 2",
+                "value": 60
+              },
+              {
+                "columnId": 15,
+                "formula": "=SUM(CHILDREN())",
+                "value": 30
+              }
+            ],
+            "attachments": [
+              {
+                "id": 9001,
+                "name": "brief.pdf"
+              }
+            ]
+          },
+          {
+            "id": 102,
+            "parentId": 101,
+            "cells": [
+              {
+                "columnId": 11,
+                "value": "Build"
+              },
+              {
+                "columnId": 12,
+                "value": 10
+              },
+              {
+                "columnId": 13,
+                "value": "Done"
+              },
+              {
+                "columnId": 14,
+                "formula": "=[Amount]@row * 2",
+                "value": 20
+              },
+              {
+                "columnId": 15,
+                "value": 10
+              }
+            ]
+          },
+          {
+            "id": 103,
+            "parentId": 101,
+            "cells": [
+              {
+                "columnId": 11,
+                "value": "Test"
+              },
+              {
+                "columnId": 12,
+                "value": 20
+              },
+              {
+                "columnId": 13,
+                "value": "Open"
+              },
+              {
+                "columnId": 14,
+                "formula": "=[Amount]@row * 2",
+                "value": 40
+              },
+              {
+                "columnId": 15,
+                "value": 20
+              }
+            ]
+          }
+        ],
+        "_automationRules": [
+          {
+            "id": 7001,
+            "name": "Notify owner"
+          }
+        ],
+        "_shares": [
+          {
+            "id": "user@example.com",
+            "accessLevel": "EDITOR"
+          }
+        ]
+      }
+    }
+  ],
+  "dependencies": [],
+  "errors": []
+}

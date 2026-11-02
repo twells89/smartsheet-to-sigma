@@ -1,0 +1,14 @@
+{
+  "name": "smartsheet-to-sigma",
+  "description": "One-time Smartsheet asset and workspace migration to Sigma",
+  "owner": {
+    "name": "Thomas Wells"
+  },
+  "plugins": [
+    {
+      "name": "smartsheet-to-sigma",
+      "source": "./",
+      "description": "Audit and migrate Smartsheet grids, reports, and dashboards into editable Sigma workbooks"
+    }
+  ]
+}
