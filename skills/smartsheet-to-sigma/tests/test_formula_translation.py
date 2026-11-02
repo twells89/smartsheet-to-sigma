@@ -18,6 +18,16 @@ class FormulaTranslationTests(unittest.TestCase):
             'If([Status] = "Open", [Amount] * 2, 0)',
         )
 
+    def test_preserves_formula_tokens_inside_string_literals(self):
+        result = translate_formula(
+            '=IF([Status]@row = "Open: {Queue} [Amount]12 @row <> IF(", 1, 0)'
+        )
+        self.assertTrue(result["supported"])
+        self.assertEqual(
+            result["sigma"],
+            'If([Status] = "Open: {Queue} [Amount]12 @row <> IF(", 1, 0)',
+        )
+
     def test_rejects_aggregate_function_without_scalar_ast(self):
         result = translate_formula("=AVERAGE([Amount]@row, 10)")
         self.assertFalse(result["supported"])

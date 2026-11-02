@@ -250,7 +250,11 @@ def _capture_asset(
         raw["_discussionThreads"] = discussions
         feature_errors = [
             item
-            for item in (automation_error, discussion_error)
+            for item in (
+                automation_error,
+                discussion_error,
+                raw.get("_summaryError"),
+            )
             if item is not None
         ]
     elif asset_type == "report":

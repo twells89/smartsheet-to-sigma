@@ -130,12 +130,12 @@ def _discover_grid(asset: dict, *, report: bool) -> dict:
         }
         column_locked = bool(column.get("locked"))
         partial_formula = bool(formula_count) and formula_count != len(rows)
-        if formula_count and literals:
+        if system_managed or column_locked:
+            behavior = "read-only"
+        elif formula_count and literals:
             behavior = "mixed"
         elif formula_count:
             behavior = "computed"
-        elif system_managed or column_locked:
-            behavior = "read-only"
         else:
             behavior = "editable"
         discovered_columns.append(

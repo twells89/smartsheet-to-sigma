@@ -39,14 +39,15 @@ def translate_formula(formula: str) -> dict:
     expression = source[1:].strip()
     if not expression:
         return _unsupported(source, "FORMULA_EMPTY")
-    if "{" in expression or "}" in expression:
-        return _unsupported(source, "CROSS_SHEET_REFERENCE")
-    if _NUMBERED_REF_RE.search(expression) or ":" in expression:
-        return _unsupported(source, "ROW_POSITION_REFERENCE")
-    if _BARE_AT_RE.search(expression) and not _SAME_ROW_RE.search(expression):
-        return _unsupported(source, "UNQUALIFIED_CELL_REFERENCE")
 
     without_strings = _STRING_RE.sub('""', expression)
+    if "{" in without_strings or "}" in without_strings:
+        return _unsupported(source, "CROSS_SHEET_REFERENCE")
+    if _NUMBERED_REF_RE.search(without_strings) or ":" in without_strings:
+        return _unsupported(source, "ROW_POSITION_REFERENCE")
+    if _BARE_AT_RE.search(without_strings) and not _SAME_ROW_RE.search(without_strings):
+        return _unsupported(source, "UNQUALIFIED_CELL_REFERENCE")
+
     if not _SAFE_RE.fullmatch(without_strings):
         return _unsupported(source, "UNSUPPORTED_TOKEN")
 
@@ -58,15 +59,7 @@ def translate_formula(formula: str) -> dict:
     if unsupported:
         return _unsupported(source, "UNSUPPORTED_FUNCTION", functions=unsupported)
 
-    translated = _SAME_ROW_RE.sub(lambda match: f"[{match.group(1)}]", expression)
-    translated = re.sub(r"<>", "!=", translated)
-    for source_name, sigma_name in sorted(FUNCTIONS.items(), key=lambda pair: -len(pair[0])):
-        translated = re.sub(
-            rf"\b{re.escape(source_name)}\s*\(",
-            sigma_name + "(",
-            translated,
-            flags=re.IGNORECASE,
-        )
+    translated = _rewrite_unquoted(expression)
     return {
         "source": source,
         "normalized": normalize_formula(source),
@@ -75,6 +68,25 @@ def translate_formula(formula: str) -> dict:
         "reason": None,
         "functions": sorted(names),
     }
+
+
+def _rewrite_unquoted(expression: str) -> str:
+    def rewrite(segment: str) -> str:
+        segment = _SAME_ROW_RE.sub(lambda match: f"[{match.group(1)}]", segment)
+        segment = re.sub(r"<>", "!=", segment)
+        return _FUNCTION_RE.sub(
+            lambda match: FUNCTIONS[match.group(1).upper()] + "(",
+            segment,
+        )
+
+    pieces = []
+    end = 0
+    for match in _STRING_RE.finditer(expression):
+        pieces.append(rewrite(expression[end:match.start()]))
+        pieces.append(match.group(0))
+        end = match.end()
+    pieces.append(rewrite(expression[end:]))
+    return "".join(pieces)
 
 
 def _unsupported(source: str, reason: str, *, functions: list[str] | None = None) -> dict:

@@ -163,12 +163,21 @@ class SmartsheetClient:
             "pageSize": 5000,
         }
         first = self.get(f"/sheets/{sheet_id}", {**params, "page": 1})
-        return self._merge_row_pages(
+        sheet = self._merge_row_pages(
             f"/sheets/{sheet_id}",
             first,
             params,
             total_key="totalRowCount",
         )
+        try:
+            sheet["summary"] = self.get(f"/sheets/{sheet_id}/summary")
+        except SmartsheetApiError as error:
+            sheet["_summaryError"] = {
+                "path": error.path,
+                "status": error.status,
+                "error": str(error),
+            }
+        return sheet
 
     def get_report(self, report_id: str) -> dict:
         """Fetch a report and merge all row pages (10,000 rows per request)."""
@@ -183,10 +192,7 @@ class SmartsheetClient:
             str(item.get("assetType") or "").lower() == "workspace"
             for item in scope
         )
-        versions_before = {
-            sheet_id: self.get(f"/sheets/{sheet_id}/version").get("version")
-            for sheet_id in direct_sheet_ids
-        }
+        versions_before, version_errors = self._sheet_versions(direct_sheet_ids)
         params = {
             "accessApiLevel": 1,
             "include": (
@@ -205,14 +211,16 @@ class SmartsheetClient:
         )
         first["_definition"] = self.get(f"/reports/{report_id}/definition")
         first["_scope"] = scope
-        versions_after = {
-            sheet_id: self.get(f"/sheets/{sheet_id}/version").get("version")
-            for sheet_id in direct_sheet_ids
-        }
+        versions_after, errors_after = self._sheet_versions(direct_sheet_ids)
+        version_errors.extend(errors_after)
         first["_consistencyVerified"] = (
-            not has_workspace_scope and versions_before == versions_after
+            not has_workspace_scope
+            and not version_errors
+            and versions_before == versions_after
         )
-        if versions_before != versions_after:
+        if version_errors:
+            first["_versionErrors"] = version_errors
+        if version_errors or versions_before != versions_after:
             first["_captureComplete"] = False
         return first
 
@@ -312,6 +320,23 @@ class SmartsheetClient:
                 "status": error.status,
                 "error": str(error),
             }
+
+    def _sheet_versions(self, sheet_ids: list[str]) -> tuple[dict, list[dict]]:
+        versions = {}
+        errors = []
+        for sheet_id in sheet_ids:
+            path = f"/sheets/{sheet_id}/version"
+            try:
+                versions[sheet_id] = self.get(path).get("version")
+            except SmartsheetApiError as error:
+                errors.append(
+                    {
+                        "path": path,
+                        "status": error.status,
+                        "error": str(error),
+                    }
+                )
+        return versions, errors
 
     def _merge_row_pages(
         self,

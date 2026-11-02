@@ -125,6 +125,30 @@ class SourceModelAuditTests(unittest.TestCase):
             {item["sourceName"] for item in route["readOnlyColumns"]},
         )
 
+    def test_locked_mixed_column_is_not_editable(self):
+        raw = json.loads((FIXTURES / "asset-snapshot.json").read_text())
+        rollup = next(
+            column
+            for column in raw["assets"][0]["raw"]["columns"]
+            if column["title"] == "Rollup"
+        )
+        rollup["locked"] = True
+        snapshot = finalize_snapshot(raw)
+        discovery = build_discovery(snapshot)
+        column = next(
+            column
+            for column in discovery["assets"][0]["columns"]
+            if column["title"] == "Rollup"
+        )
+        self.assertEqual(column["behavior"], "read-only")
+        plan = build_plan(snapshot, discovery, audit_snapshot(snapshot, discovery))
+        route = plan["assets"][0]
+        self.assertNotIn(
+            "Rollup",
+            {item["sourceName"] for item in route["editableColumns"]},
+        )
+        self.assertEqual(route["mixedColumnPolicies"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

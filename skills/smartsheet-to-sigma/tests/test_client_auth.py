@@ -105,7 +105,10 @@ class ClientAuthTests(unittest.TestCase):
 
     def test_get_sheet_pages_all_rows_and_marks_complete(self):
         def opener(request, timeout):
-            query = urllib.parse.parse_qs(urllib.parse.urlparse(request.full_url).query)
+            parsed = urllib.parse.urlparse(request.full_url)
+            if parsed.path.endswith("/sheets/1/summary"):
+                return Response({"fields": [{"id": 10, "title": "Total"}]})
+            query = urllib.parse.parse_qs(parsed.query)
             page = int(query["page"][0])
             return Response(
                 {
@@ -121,6 +124,40 @@ class ClientAuthTests(unittest.TestCase):
         sheet = client.get_sheet("1")
         self.assertEqual([row["id"] for row in sheet["rows"]], [1, 2])
         self.assertTrue(sheet["_captureComplete"])
+        self.assertEqual(sheet["summary"]["fields"][0]["title"], "Total")
+
+    def test_get_report_retains_rows_when_source_version_is_inaccessible(self):
+        def opener(request, timeout):
+            parsed = urllib.parse.urlparse(request.full_url)
+            path = parsed.path
+            if path.endswith("/reports/2/scope"):
+                return Response({"data": [{"assetType": "sheet", "assetId": 1}]})
+            if path.endswith("/sheets/1/version"):
+                raise urllib.error.HTTPError(
+                    request.full_url,
+                    403,
+                    "forbidden",
+                    {},
+                    io.BytesIO(b'{"message":"forbidden"}'),
+                )
+            if path.endswith("/reports/2/definition"):
+                return Response({"id": 2})
+            if path.endswith("/reports/2"):
+                return Response(
+                    {
+                        "id": 2,
+                        "totalRowCount": 1,
+                        "rows": [{"id": 20}],
+                    }
+                )
+            raise AssertionError(path)
+
+        client = SmartsheetClient("x" * 32, opener=opener)
+        report = client.get_report("2")
+        self.assertEqual(report["rows"], [{"id": 20}])
+        self.assertFalse(report["_consistencyVerified"])
+        self.assertFalse(report["_captureComplete"])
+        self.assertEqual(len(report["_versionErrors"]), 2)
 
     def test_workspace_tree_uses_current_children_endpoints(self):
         calls = []
