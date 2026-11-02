@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "captureKind": "smartsheet",
+  "capturedAt": "2026-11-02T12:00:00+00:00",
+  "scope": "workspace",
+  "source": {
+    "id": "5000",
+    "type": "workspace",
+    "name": "Operations",
+    "url": null
+  },
+  "assets": [
+    {
+      "id": "2001",
+      "type": "sheet",
+      "name": "Requests",
+      "path": "Operations/Inputs",
+      "featureErrors": [],
+      "raw": {
+        "id": 2001,
+        "name": "Requests",
+        "columns": [
+          {
+            "id": 21,
+            "title": "Request",
+            "type": "TEXT_NUMBER",
+            "primary": true
+          },
+          {
+            "id": 22,
+            "title": "Cost",
+            "type": "TEXT_NUMBER"
+          },
+          {
+            "id": 23,
+            "title": "Approved",
+            "type": "CHECKBOX"
+          }
+        ],
+        "rows": [
+          {
+            "id": 201,
+            "cells": [
+              {
+                "columnId": 21,
+                "value": "Laptop"
+              },
+              {
+                "columnId": 22,
+                "value": 1500
+              },
+              {
+                "columnId": 23,
+                "value": true
+              }
+            ]
+          },
+          {
+            "id": 202,
+            "cells": [
+              {
+                "columnId": 21,
+                "value": "Monitor"
+              },
+              {
+                "columnId": 22,
+                "value": 500
+              },
+              {
+                "columnId": 23,
+                "value": false
+              }
+            ]
+          }
+        ],
+        "_automationRules": [],
+        "_shares": []
+      }
+    },
+    {
+      "id": "3001",
+      "type": "report",
+      "name": "Approved Requests",
+      "path": "Operations/Reports",
+      "featureErrors": [],
+      "raw": {
+        "id": 3001,
+        "name": "Approved Requests",
+        "totalRowCount": 1,
+        "_captureComplete": true,
+        "sourceSheets": [
+          {
+            "id": 2001,
+            "name": "Requests"
+          }
+        ],
+        "columns": [
+          {
+            "virtualId": 2101,
+            "title": "Request",
+            "type": "TEXT_NUMBER"
+          },
+          {
+            "virtualId": 2201,
+            "title": "Cost",
+            "type": "TEXT_NUMBER"
+          }
+        ],
+        "rows": [
+          {
+            "id": 201,
+            "cells": [
+              {
+                "virtualColumnId": 2101,
+                "value": "Laptop"
+              },
+              {
+                "virtualColumnId": 2201,
+                "value": 1500
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "4001",
+      "type": "dashboard",
+      "name": "Operations Overview",
+      "path": "Operations",
+      "featureErrors": [],
+      "raw": {
+        "id": 4001,
+        "name": "Operations Overview",
+        "widgets": [
+          {
+            "id": 401,
+            "type": "METRIC",
+            "title": "Approved spend",
+            "contents": {
+              "type": "METRIC",
+              "reportId": 3001
+            },
+            "layout": {
+              "xPosition": 0,
+              "yPosition": 0,
+              "width": 4,
+              "height": 2
+            }
+          },
+          {
+            "id": 402,
+            "type": "WEBCONTENT",
+            "title": "Policy",
+            "layout": {
+              "xPosition": 4,
+              "yPosition": 0,
+              "width": 4,
+              "height": 2
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "3001",
+      "to": "2001",
+      "kind": "report-source"
+    },
+    {
+      "from": "4001",
+      "to": "3001",
+      "kind": "dashboard-report-source"
+    }
+  ],
+  "errors": []
+}

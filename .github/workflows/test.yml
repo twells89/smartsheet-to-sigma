@@ -1,0 +1,73 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: skills/smartsheet-to-sigma/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Unit tests (shard ${{ matrix.shard }}/2)
+        run: >-
+          python .github/scripts/run_shard.py
+          skills/smartsheet-to-sigma/tests
+          ${{ matrix.shard }}/2
+
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: skills/smartsheet-to-sigma/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Plugin and standalone skill packaging
+        run: python -m unittest discover -s tests -v
+      - name: Compile Python
+        run: >-
+          python -m compileall -q
+          skills/smartsheet-to-sigma/scripts
+          skills/smartsheet-to-sigma/tests
+          tests
+      - name: Offline migration smoke
+        working-directory: skills/smartsheet-to-sigma
+        run: |
+          python scripts/migrate.py plan fixture \
+            --scope asset \
+            --asset-type sheet \
+            --snapshot tests/fixtures/asset-snapshot.json \
+            --out-dir /tmp/smartsheet-plan
+          python scripts/build-migration.py /tmp/smartsheet-plan/plan.json \
+            --out-dir /tmp/smartsheet-build
+          python -m py_compile /tmp/smartsheet-build/mcp-seed-program.py
+
+  python:
+    needs: [unit, checks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All shards and checks passed
+        run: |
+          echo "unit=${{ needs.unit.result }} checks=${{ needs.checks.result }}"
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.checks.result }}" = success
