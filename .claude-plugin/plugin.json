@@ -3,7 +3,7 @@
   "name": "smartsheet-to-sigma",
   "displayName": "Smartsheet → Sigma",
   "version": "0.1.0",
-  "description": "Audit and perform one-time migrations of Smartsheet assets or workspaces into editable Sigma workbooks and data models.",
+  "description": "Audit and perform one-time migrations of Smartsheet assets, workspaces, and automation workflows into editable Sigma workbooks and data models.",
   "author": {
     "name": "Thomas Wells"
   },
@@ -15,6 +15,7 @@
     "sigma",
     "migration",
     "bi",
-    "converter"
+    "converter",
+    "automation"
   ]
 }

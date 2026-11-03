@@ -11,6 +11,7 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 sys.path.insert(0, str(LIB))
 
 from migration_gate import MigrationGateError, gate_plan
+from automation_workflows import merge_workflow_capture
 from planner import (
     _rewrite_formula_columns,
     apply_mixed_policy,
@@ -115,6 +116,7 @@ class PlannerBuilderTests(unittest.TestCase):
                 "workbooks.json",
                 "source-data.json",
                 "dashboard-review.json",
+                "automation-intents.json",
                 "mcp-seed-program.py",
                 "migration-manifest.json",
                 "parity.json",
@@ -135,6 +137,17 @@ class PlannerBuilderTests(unittest.TestCase):
         snapshot, plan = make_plan()
         with self.assertRaises(MigrationGateError):
             gate_plan(plan, production=True)
+        capture = json.loads(
+            (FIXTURES / "automation-workflows.json").read_text()
+        )
+        capture["baseSourceSha256"] = snapshot["sourceSha256"]
+        snapshot, _ = merge_workflow_capture(snapshot, capture)
+        discovery = build_discovery(snapshot)
+        plan = build_plan(
+            snapshot,
+            discovery,
+            audit_snapshot(snapshot, discovery),
+        )
         plan = apply_mixed_policy(plan, "override-wins")
         dispositions = {
             "sourceSha256": snapshot["sourceSha256"],
@@ -158,9 +171,11 @@ class PlannerBuilderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "review.json"
             path.write_text(json.dumps(dispositions))
+            snapshot_path = Path(temp) / "snapshot.json"
+            snapshot_path.write_text(json.dumps(snapshot))
             result = gate_plan(
                 plan,
-                snapshot_path=str(FIXTURES / "asset-snapshot.json"),
+                snapshot_path=str(snapshot_path),
                 dispositions_path=str(path),
                 production=True,
             )

@@ -22,6 +22,8 @@ For each source asset record:
 - summary fields, project/Gantt settings, filters, attachments, discussions,
   proofs, automation rules, and sharing metadata when available;
 - API capture errors or features unavailable through the API.
+- full Smartsheet MCP workflow trees, pagination status, trigger/effect types,
+  enabled state, frequency, and documented capture limitations.
 
 An empty API result is not evidence that a feature does not exist when the API
 documents that feature as inaccessible.
@@ -33,9 +35,13 @@ documents that feature as inaccessible.
 3. Every editable source grain has a Sigma input route or explicit disposition.
 4. Formula routes remain live; cached values are used only for parity.
 5. Reports and dashboard metrics are checked against captured values.
-6. Every `REVIEW_REQUIRED` issue instance has its own stable `issueId`,
+6. Every sheet has a complete, cursor-audited Smartsheet MCP workflow capture;
+   this gate cannot be bypassed with a disposition.
+7. Every automation workflow has a Sigma sequence, scaffold, or verified
+   disposition and live side-effect evidence.
+8. Every `REVIEW_REQUIRED` issue instance has its own stable `issueId`,
    source-bound owner, disposition, verification, and runtime evidence.
-7. `BLOCKED` cannot be overridden by a disposition file.
+9. `BLOCKED` cannot be overridden by a disposition file.
 
 ## Known review surfaces
 
@@ -44,7 +50,11 @@ documents that feature as inaccessible.
 - report criteria the API does not expose sufficiently to reconstruct;
 - dashboard content/image/web widgets without a native Sigma equivalent;
 - attachments, discussions, proofs, update requests, and collaboration history;
-- automation rules, especially multistep workflows unavailable through the API;
+- REST-visible automation rules when full Smartsheet MCP capture is unavailable;
+- reminder workflows omitted by Smartsheet MCP;
+- Smartsheet row/cell event triggers that require a Sigma webhook bridge;
+- approvals, update requests, move-row transactions, connector credentials,
+  webhook HMAC, and publish ownership;
 - Smartsheet sharing, ownership, and publishing settings;
 - Gantt dependencies, baselines, resource management, and project settings.
 

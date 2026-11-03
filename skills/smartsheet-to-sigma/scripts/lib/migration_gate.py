@@ -5,11 +5,19 @@ import json
 from pathlib import Path
 
 try:
+    from .automation_workflows import (
+        WorkflowCaptureError,
+        validate_embedded_workflow_capture,
+    )
     from .planner import build_plan, validate_plan
     from .source_audit import audit_snapshot
     from .source_model import build_discovery
     from .source_snapshot import load_snapshot
 except ImportError:
+    from automation_workflows import (
+        WorkflowCaptureError,
+        validate_embedded_workflow_capture,
+    )
     from planner import build_plan, validate_plan
     from source_audit import audit_snapshot
     from source_model import build_discovery
@@ -41,6 +49,10 @@ def gate_plan(
                 "source snapshot hash does not match the plan sourceSha256"
             )
         if production:
+            try:
+                validate_embedded_workflow_capture(snapshot)
+            except WorkflowCaptureError as error:
+                raise MigrationGateError(str(error)) from error
             discovery = build_discovery(snapshot)
             regenerated = build_plan(
                 snapshot,
@@ -62,16 +74,35 @@ def gate_plan(
             "production completion requires a mixed-column policy for: "
             + ", ".join(unresolved_decisions)
         )
+    incomplete_automation = [
+        str(asset.get("sourceId"))
+        for asset in plan.get("assets") or []
+        if asset.get("sourceType") == "sheet"
+        and (asset.get("automation") or {}).get("captureStatus") != "complete"
+    ]
+    if production and incomplete_automation:
+        raise MigrationGateError(
+            "production completion requires complete Smartsheet MCP workflow capture for: "
+            + ", ".join(incomplete_automation)
+        )
     pending = sorted(set(plan.get("pendingReview") or []))
     if not pending:
-        return {"status": "NOT_REQUIRED", "pending": []}
+        return {
+            "status": "NOT_REQUIRED",
+            "pending": [],
+            "validatedEvidence": {},
+        }
     if not dispositions_path:
         if production:
             raise MigrationGateError(
                 "production completion requires review dispositions for: "
                 + ", ".join(pending)
             )
-        return {"status": "DRAFT_PENDING", "pending": pending}
+        return {
+            "status": "DRAFT_PENDING",
+            "pending": pending,
+            "validatedEvidence": {},
+        }
     record = _load_json(dispositions_path)
     if record.get("sourceSha256") != plan["sourceSha256"]:
         raise MigrationGateError(
@@ -96,6 +127,11 @@ def gate_plan(
     return {
         "status": "DISPOSITIONED" if not unresolved else "DRAFT_PENDING",
         "pending": unresolved,
+        "validatedEvidence": {
+            issue_id: indexed[issue_id]["evidence"]
+            for issue_id in pending
+            if issue_id not in unresolved
+        },
     }
 
 

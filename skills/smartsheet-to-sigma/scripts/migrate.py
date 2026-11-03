@@ -12,6 +12,12 @@ if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
 
 from planner import build_plan  # noqa: E402
+from automation_workflows import (  # noqa: E402
+    WorkflowCaptureError,
+    embedded_workflow_capture,
+    merge_workflow_capture,
+    workflow_capture_plan,
+)
 from smartsheet_auth import SmartsheetAuthError, resolve_access_token  # noqa: E402
 from smartsheet_client import SmartsheetApiError, SmartsheetClient  # noqa: E402
 from source_audit import audit_snapshot, review_template  # noqa: E402
@@ -36,16 +42,68 @@ def plan_command(args) -> int:
         source = parse_source(args.source, scope=args.scope, asset_type=args.asset_type)
         client = SmartsheetClient(resolve_access_token())
         snapshot = capture_snapshot(client, source, scope=args.scope)
+    capture_supplied = bool(args.automation_workflows)
+    normalized_capture = None
+    base_snapshot = snapshot
+    if capture_supplied:
+        capture = json.loads(
+            Path(args.automation_workflows).read_text(encoding="utf-8")
+        )
+        snapshot, normalized_capture = merge_workflow_capture(snapshot, capture)
+    sheet_assets = [
+        asset for asset in snapshot.get("assets") or []
+        if asset.get("type") == "sheet"
+    ]
+    embedded_complete = not sheet_assets or all(
+        ((asset.get("raw") or {}).get("_workflowCapture") or {}).get("status")
+        == "complete"
+        for asset in sheet_assets
+    )
+    if not capture_supplied and embedded_complete:
+        normalized_capture = embedded_workflow_capture(snapshot)
+    capture_available = capture_supplied or embedded_complete
 
     discovery = build_discovery(snapshot)
     audit = audit_snapshot(snapshot, discovery)
     plan = build_plan(snapshot, discovery, audit)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    stale_capture_plan = out_dir / "workflow-capture-plan.json"
+    normalized_capture_path = out_dir / "automation-workflows.normalized.json"
+    base_snapshot_path = out_dir / "base-source-snapshot.json"
+    if capture_available and stale_capture_plan.exists():
+        stale_capture_plan.unlink()
+    if not capture_available:
+        for obsolete in (normalized_capture_path, base_snapshot_path):
+            if obsolete.exists():
+                obsolete.unlink()
     write_json(out_dir / "source-snapshot.json", snapshot)
     write_json(out_dir / "migration-audit.json", audit)
     write_json(out_dir / "discovery.json", discovery)
     write_json(out_dir / "plan.json", plan)
+    if not capture_available:
+        write_json(
+            out_dir / "workflow-capture-plan.json",
+            workflow_capture_plan(snapshot),
+        )
+    else:
+        if not capture_supplied and base_snapshot_path.exists():
+            try:
+                existing_base = load_snapshot(base_snapshot_path)
+            except SnapshotError:
+                base_snapshot_path.unlink()
+            else:
+                if (
+                    existing_base["sourceSha256"]
+                    != normalized_capture["baseSourceSha256"]
+                ):
+                    base_snapshot_path.unlink()
+        if capture_supplied:
+            write_json(base_snapshot_path, base_snapshot)
+        write_json(
+            normalized_capture_path,
+            normalized_capture,
+        )
     template = review_template(audit)
     template["planSha256"] = plan["planSha256"]
     write_json(out_dir / "review.template.json", template)
@@ -78,6 +136,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="required for bare IDs in asset scope",
     )
     plan.add_argument("--snapshot", help="use an existing canonical snapshot")
+    plan.add_argument(
+        "--automation-workflows",
+        help="merge an agent-materialized Smartsheet MCP get_workflows capture",
+    )
     plan.add_argument("--out-dir", required=True)
     plan.set_defaults(handler=plan_command)
     return parser
@@ -88,7 +150,15 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.handler(args)
-    except (SnapshotError, SmartsheetAuthError, SmartsheetApiError, ValueError) as error:
+    except (
+        OSError,
+        json.JSONDecodeError,
+        SnapshotError,
+        WorkflowCaptureError,
+        SmartsheetAuthError,
+        SmartsheetApiError,
+        ValueError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 try:
+    from .automation_translation import translate_sheet_workflows
     from .formula_translation import translate_formula
 except ImportError:
+    from automation_translation import translate_sheet_workflows
     from formula_translation import translate_formula
 
 
@@ -174,6 +176,7 @@ def _discover_grid(asset: dict, *, report: bool) -> dict:
         "discussions": _count_nested(raw, "discussions"),
         "proofs": _count_nested(raw, "proofs") + _count_nested(raw, "proof"),
         "automationRules": len(raw.get("_automationRules") or []),
+        "automationWorkflows": len(raw.get("_workflows") or []),
         "shares": len(raw.get("_shares") or []),
         "summaryFields": len(raw.get("summary", {}).get("fields", []) or [])
         if isinstance(raw.get("summary"), dict)
@@ -181,6 +184,15 @@ def _discover_grid(asset: dict, *, report: bool) -> dict:
         "crossSheetReferences": len(raw.get("crossSheetReferences") or []),
         "filters": len(raw.get("filters") or raw.get("filterDefinitions") or []),
     }
+    automation = (
+        translate_sheet_workflows(
+            asset["id"],
+            raw.get("_workflows") or [],
+            capture=raw.get("_workflowCapture"),
+        )
+        if not report
+        else None
+    )
     return {
         "id": asset["id"],
         "type": asset["type"],
@@ -201,6 +213,7 @@ def _discover_grid(asset: dict, *, report: bool) -> dict:
         "formulaErrors": error_cells,
         "parityTargets": parity_targets,
         "featureCounts": feature_counts,
+        "automation": automation,
         "projectSettings": {
             key: raw.get(key)
             for key in ("ganttEnabled", "dependenciesEnabled", "resourceManagementEnabled")
