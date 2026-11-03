@@ -39,6 +39,7 @@ class PackagingTests(unittest.TestCase):
                 "scripts/migrate.py",
                 "scripts/audit-smartsheet.py",
                 "scripts/build-migration.py",
+                "scripts/automation-workflows.py",
             ):
                 self.assertTrue((standalone / path).is_file(), path)
             for reference in re.findall(r"`(refs/[^` ]+\.md)`", content):

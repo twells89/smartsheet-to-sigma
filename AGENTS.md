@@ -11,3 +11,7 @@ canonical and must remain usable when the skill folder is copied by itself.
 The repository does not install a Sigma MCP server. The agent or user supplies
 Sigma tooling and credentials. Never pass Smartsheet or Sigma secrets on a
 command line or write them into migration artifacts.
+
+When available, use Smartsheet MCP `get_workflows` to materialize the
+source-bound automation capture requested by the router. REST automation rules
+alone are not a complete workflow inventory.

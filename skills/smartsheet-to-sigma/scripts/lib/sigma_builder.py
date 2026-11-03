@@ -23,6 +23,7 @@ def build_bundle(plan: dict, out_dir: str | Path, *, gate: dict) -> dict:
     workbooks = _workbooks(plan)
     source_data = _source_data(plan)
     dashboard_review = _dashboard_review(plan)
+    automation_intents = _automation_intents(plan)
     parity = _parity(plan)
     manifest = _manifest(
         plan,
@@ -31,6 +32,7 @@ def build_bundle(plan: dict, out_dir: str | Path, *, gate: dict) -> dict:
         workbooks,
         source_data,
         dashboard_review,
+        automation_intents,
         parity,
         gate,
     )
@@ -39,6 +41,7 @@ def build_bundle(plan: dict, out_dir: str | Path, *, gate: dict) -> dict:
     write_json(destination / "workbooks.json", workbooks)
     write_json(destination / "source-data.json", source_data)
     write_json(destination / "dashboard-review.json", dashboard_review)
+    write_json(destination / "automation-intents.json", automation_intents)
     write_json(destination / "parity.json", parity)
     write_json(destination / "migration-manifest.json", manifest)
     program_path = destination / "mcp-seed-program.py"
@@ -238,6 +241,11 @@ def _workbooks(plan: dict) -> dict:
         )
         layout_pages.append(_layout_page(page_id, page_element_ids, page_index))
     name = str((plan.get("source") or {}).get("name") or "Smartsheet Migration")
+    automated_actions = [
+        workflow["codeRepresentationIntent"]
+        for asset in plan["assets"]
+        for workflow in (asset.get("automation") or {}).get("workflows", [])
+    ]
     workbook = {
         "name": name,
         "folderId": "${SIGMA_FOLDER_ID}",
@@ -257,6 +265,7 @@ def _workbooks(plan: dict) -> dict:
         "intentSchema": "smartsheet-to-sigma/workbooks/v1",
         "sourceSha256": plan["sourceSha256"],
         "workbooks": [workbook],
+        "deferredAutomationIntents": automated_actions,
     }
 
 
@@ -284,6 +293,12 @@ def _parity(plan: dict) -> dict:
             targets = {
                 "rowCount": len(asset.get("rows") or []),
                 "formulaCells": targets or [],
+                "automations": [
+                    workflow["parityTarget"]
+                    for workflow in (asset.get("automation") or {}).get(
+                        "workflows", []
+                    )
+                ],
             }
         elif asset["sourceType"] == "dashboard":
             targets = {
@@ -357,6 +372,99 @@ def _dashboard_review(plan: dict) -> dict:
     }
 
 
+def _automation_intents(plan: dict) -> dict:
+    workflows = [
+        {
+            "sourceAssetId": asset["sourceId"],
+            "sourceAssetName": asset["sourceName"],
+            **workflow,
+        }
+        for asset in plan["assets"]
+        for workflow in (asset.get("automation") or {}).get("workflows", [])
+    ]
+    return {
+        "schemaVersion": 1,
+        "intentSchema": "smartsheet-to-sigma/automations/v1",
+        "sourceSha256": plan["sourceSha256"],
+        "workflows": workflows,
+        "summary": {
+            "total": len(workflows),
+            "effectIntentReady": sum(
+                workflow["coverage"] == "EFFECT_INTENT_READY"
+                for workflow in workflows
+            ),
+            "effectIntentWithHandoff": sum(
+                workflow["coverage"] == "EFFECT_INTENT_WITH_HANDOFF"
+                for workflow in workflows
+            ),
+            "scaffoldRequired": sum(
+                workflow["coverage"] == "SCAFFOLD_REQUIRED"
+                for workflow in workflows
+            ),
+            "reviewRequired": sum(
+                workflow["coverage"] == "REVIEW_REQUIRED"
+                for workflow in workflows
+            ),
+        },
+    }
+
+
+def _automation_manifest(plan: dict, gate: dict) -> list[dict]:
+    issues = plan.get("reviewIssues") or []
+    validated = gate.get("validatedEvidence") or {}
+    records = []
+    for asset in plan["assets"]:
+        for workflow in (asset.get("automation") or {}).get("workflows", []):
+            marker = f":workflow:{workflow['sourceWorkflowId']}:"
+            related = [
+                issue
+                for issue in issues
+                if any(
+                    marker in str(item)
+                    for item in issue.get("evidence") or []
+                )
+            ]
+            related_ids = [issue["issueId"] for issue in related]
+            evidence = [
+                validated[issue_id]
+                for issue_id in related_ids
+                if issue_id in validated
+            ]
+            verified = bool(related_ids) and len(evidence) == len(related_ids)
+            target_ids = sorted(
+                {
+                    item["targetId"]
+                    for item in evidence
+                    if isinstance(item.get("targetId"), str)
+                    and item["targetId"].strip()
+                }
+            )
+            records.append(
+                {
+                    "sourceAssetId": asset["sourceId"],
+                    "sourceWorkflowId": workflow["sourceWorkflowId"],
+                    "sourceName": workflow["name"],
+                    "logicalId": workflow["codeRepresentationIntent"][
+                        "logicalId"
+                    ],
+                    "coverage": workflow["coverage"],
+                    "reviewIssueIds": related_ids,
+                    "evidenceIds": [
+                        item["evidenceId"]
+                        for item in evidence
+                        if item.get("evidenceId")
+                    ],
+                    "targetActionSequenceId": (
+                        target_ids[0] if len(target_ids) == 1 else None
+                    ),
+                    "targetIds": target_ids,
+                    "deploymentState": "VERIFIED" if verified else "PLANNED",
+                    "parityStatus": "PASSED" if verified else "PENDING_LIVE_CHECK",
+                }
+            )
+    return records
+
+
 def _manifest(
     plan: dict,
     input_tables: dict,
@@ -364,6 +472,7 @@ def _manifest(
     workbooks: dict,
     source_data: dict,
     dashboard_review: dict,
+    automation_intents: dict,
     parity: dict,
     gate: dict,
 ) -> dict:
@@ -380,6 +489,7 @@ def _manifest(
             "workbooks": len(workbooks["workbooks"]),
             "sourceDataAssets": len(source_data["assets"]),
             "dashboardReviewAssets": len(dashboard_review["dashboards"]),
+            "automationIntents": len(automation_intents["workflows"]),
             "parityAssets": len(parity["assets"]),
         },
         "assets": [
@@ -394,6 +504,7 @@ def _manifest(
             }
             for asset in plan["assets"]
         ],
+        "automationWorkflows": _automation_manifest(plan, gate),
         "userHandoffs": plan.get("userHandoffs") or [],
     }
 

@@ -25,6 +25,42 @@ def build_plan(snapshot: dict, discovery: dict, audit: dict) -> dict:
         for issue in audit.get("issues") or []
         if issue.get("severity") != "blocker"
     ]
+    workflow_capture_pending = any(
+        (asset.get("automation") or {}).get("captureStatus") != "complete"
+        for asset in discovery.get("assets") or []
+        if asset.get("type") == "sheet"
+    )
+    next_commands = (
+        [
+            (
+                "python scripts/automation-workflows.py plan "
+                "<workdir>/source-snapshot.json "
+                "--out <workdir>/workflow-capture-plan.json"
+            ),
+            (
+                "python scripts/migrate.py plan workflow-enriched "
+                f"--scope {snapshot['scope']} "
+                "--snapshot <workdir>/source-snapshot.json "
+                "--automation-workflows <workdir>/automation-workflows.json "
+                "--out-dir <workdir>"
+            ),
+        ]
+        if workflow_capture_pending
+        else [
+            "python scripts/build-migration.py <workdir>/plan.json --out-dir <builddir>"
+        ]
+    )
+    automation_handoffs = sorted(
+        {
+            handoff
+            for route in routes
+            for handoff in (route.get("automation") or {}).get("userHandoffs", [])
+        }
+    )
+    if workflow_capture_pending:
+        automation_handoffs.append(
+            "Agent executes every Smartsheet MCP get_workflows call and materializes automation-workflows.json."
+        )
     plan = {
         "schemaVersion": 1,
         "kind": "smartsheet-to-sigma-plan",
@@ -40,6 +76,11 @@ def build_plan(snapshot: dict, discovery: dict, audit: dict) -> dict:
                 if issue.get("severity") != "blocker"
             }
         ),
+        "reviewIssues": [
+            dict(issue)
+            for issue in audit.get("issues") or []
+            if issue.get("severity") != "blocker"
+        ],
         "assets": routes,
         "dependencies": snapshot.get("dependencies") or [],
         "readRefs": [
@@ -48,15 +89,14 @@ def build_plan(snapshot: dict, discovery: dict, audit: dict) -> dict:
             "refs/sigma-build-gotchas.md",
         ],
         "askUser": _questions(routes),
-        "nextCommands": [
-            "python scripts/build-migration.py <workdir>/plan.json --out-dir <builddir>"
-        ],
+        "nextCommands": next_commands,
         "userHandoffs": [
             "Choose the destination Sigma folder and write-enabled connection.",
             "Review input-table natural keys and mixed input/formula columns.",
             "Execute the reviewed Sigma MCP seed program and record assigned IDs.",
             "Create warehouse views, publish, and assign permissions where required.",
             "Verify live formulas, report rows, and dashboard metrics against parity.json.",
+            *automation_handoffs,
         ],
     }
     plan["planSha256"] = plan_sha256(plan)
@@ -183,6 +223,7 @@ def _sheet_route(asset: dict, raw_asset: dict) -> dict:
         "computedColumns": computed,
         "readOnlyColumns": read_only,
         "mixedColumnPolicies": mixed_policies,
+        "automation": asset.get("automation") or {},
         "rows": _source_rows(raw_asset, asset),
         "hierarchy": asset.get("hierarchy") or {},
         "parityTargets": asset.get("parityTargets") or [],
@@ -431,6 +472,33 @@ def _questions(routes: list[dict]) -> list[str]:
     if any(route["sourceType"] == "report" for route in routes):
         questions.append(
             "Should report logic be reconstructed from source sheets or accepted as a one-time snapshot?"
+        )
+    automations = [
+        workflow
+        for route in routes
+        for workflow in (route.get("automation") or {}).get("workflows", [])
+    ]
+    if any(
+        (route.get("automation") or {}).get("captureStatus") != "complete"
+        for route in routes
+        if route["sourceType"] == "sheet"
+    ):
+        questions.append(
+            "Can the agent use Smartsheet MCP get_workflows to capture full workflow trees?"
+        )
+    if any(
+        workflow["trigger"]["route"] == "external-event-bridge"
+        for workflow in automations
+    ):
+        questions.append(
+            "Which service should bridge Smartsheet row/cell events to Sigma webhooks?"
+        )
+    if any(
+        workflow["coverage"] == "SCAFFOLD_REQUIRED"
+        for workflow in automations
+    ):
+        questions.append(
+            "Who owns approval/update-request state and escalation policy in Sigma?"
         )
     return questions
 

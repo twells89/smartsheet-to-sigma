@@ -31,6 +31,25 @@ Smartsheet report criteria and dashboard widgets can be only partially visible
 through the API. Do not infer missing logic from returned rows. Build supported
 elements and retain a review record for everything else.
 
+## Automated actions
+
+- `automation-intents.json` preserves every workflow's source-tree digest,
+  mapping decision, handoff, and parity target. Destination intents redact
+  recipients and credential-like values into bindings; raw trees remain only
+  in owner-readable source/capture artifacts.
+- `workbooks.json` carries those intents under `deferredAutomationIntents`,
+  outside the POST body. Compile only supported intents into
+  `contents.automatedActions` after checking the tenant's current OpenAPI;
+  never POST the intent schema as if it were Sigma code representation.
+- Smartsheet row/cell events require an external bridge to invoke a Sigma
+  webhook; code representation alone cannot subscribe to Smartsheet events.
+- Configure webhook HMAC and API connector credentials through Sigma UI/admin
+  surfaces where code representation omits them.
+- Approval and update-request workflows require explicit input-table state and
+  user-action design. Move-row behavior requires insert-before-delete testing.
+- Publish the workbook before automated sequences can run, then verify every
+  effect and failure path.
+
 ## Execution separation
 
 `build-migration.py` is non-mutating. It emits:
@@ -40,6 +59,7 @@ elements and retain a review record for everything else.
 - `workbooks.json`;
 - `source-data.json`;
 - `dashboard-review.json`;
+- `automation-intents.json`;
 - `mcp-seed-program.py`;
 - `migration-manifest.json`;
 - `parity.json`.

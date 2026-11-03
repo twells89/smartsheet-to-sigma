@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "kind": "smartsheet-mcp-workflows",
+  "baseSourceSha256": "<BASE_SOURCE_SHA256>",
+  "sheets": [
+    {
+      "sheetId": "1001",
+      "complete": true,
+      "pages": [
+        {
+          "request_last_key": null,
+          "response_last_key": null,
+          "workflow_ids": [
+            "9001",
+            "9002",
+            "9003",
+            "9004"
+          ]
+        }
+      ],
+      "limitations": [
+        "REMINDER_WORKFLOWS_NOT_RETURNED"
+      ],
+      "workflows": [
+        {
+          "id": 9001,
+          "name": "Daily status notification",
+          "enabled": true,
+          "frequency": "DAILY",
+          "root_node": {
+            "type": "ROOT_NODE",
+            "trigger": {
+              "type": "DATE_REACHED",
+              "columnTitle": "Due Date"
+            },
+            "childNode": {
+              "type": "EMAIL_RECIPIENT",
+              "recipients": [
+                {
+                  "id": "owner@example.com"
+                }
+              ],
+              "notificationCustomizationJson": {}
+            }
+          }
+        },
+        {
+          "id": 9002,
+          "name": "Copy completed work",
+          "enabled": true,
+          "frequency": "HOURLY",
+          "root_node": {
+            "type": "ROOT_NODE",
+            "trigger": {
+              "type": "ROW_UPDATED",
+              "columnTitle": "Status"
+            },
+            "childNode": {
+              "type": "IF_ELSE",
+              "conditions": [
+                {
+                  "columnTitle": "Status",
+                  "operator": "EQUALS",
+                  "value": "Done"
+                }
+              ],
+              "childNode": {
+                "type": "COPY_ROW",
+                "destinationSheetTitle": "Archive"
+              }
+            }
+          }
+        },
+        {
+          "id": 9003,
+          "name": "Request approval",
+          "enabled": false,
+          "frequency": "RIGHT_AWAY",
+          "root_node": {
+            "type": "ROOT_NODE",
+            "trigger": {
+              "type": "ROW_CREATED"
+            },
+            "childNode": {
+              "type": "APPROVAL",
+              "recipients": [
+                {
+                  "id": "approver@example.com"
+                }
+              ],
+              "notificationCustomizationJson": {}
+            }
+          }
+        },
+        {
+          "id": 9004,
+          "name": "Custom business automation",
+          "enabled": true,
+          "frequency": "RIGHT_AWAY",
+          "root_node": {
+            "type": "ROOT_NODE",
+            "trigger": {
+              "type": "ROW_UPDATED"
+            },
+            "childNode": {
+              "type": "CUSTOM_AUTOMATION",
+              "configuration": {
+                "policy": "customer-specific",
+                "X-API-Key": "do-not-copy"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

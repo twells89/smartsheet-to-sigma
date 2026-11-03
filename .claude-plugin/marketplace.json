@@ -8,7 +8,7 @@
     {
       "name": "smartsheet-to-sigma",
       "source": "./",
-      "description": "Audit and migrate Smartsheet grids, reports, and dashboards into editable Sigma workbooks"
+      "description": "Audit and migrate Smartsheet grids, reports, dashboards, and workflow automations into editable Sigma workbooks"
     }
   ]
 }

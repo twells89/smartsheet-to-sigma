@@ -35,6 +35,8 @@ The router writes:
 - `plan.json` — destination-neutral routes plus Sigma build intent;
 - `review.template.json` — source-bound dispositions to complete before a
   production migration.
+- `workflow-capture-plan.json` — paginated Smartsheet MCP `get_workflows`
+  calls required to inventory full automation trees.
 
 It prints `readRefs`, `askUser`, `nextCommands`, and `userHandoffs`. Read only
 the selected refs, answer the listed decisions, then run commands in order.
@@ -57,6 +59,9 @@ export SMARTSHEET_ACCESS_TOKEN='...'
 on the command line, in plan JSON, or in committed files. The client retries
 bounded `429` and transient `5xx` responses and follows API pagination.
 Python 3.10 or newer is required.
+
+For automations, load the Smartsheet MCP server's `automations` toolset with
+`READ_SHEETS` access. This skill never installs or authenticates that server.
 
 ## Scope
 
@@ -87,7 +92,8 @@ Classify source columns and cells by behavior:
 | mixed literals and formulas | split input provenance from calculation; review overrides |
 | report result | derived workbook table when reconstructable, otherwise an explicit snapshot route |
 | dashboard widget | native workbook element when supported |
-| comments, proofs, attachments, automation, sharing policy | review/handoff; never silently omit |
+| automation workflow | automated-action intent plus trigger/effect handoffs |
+| comments, proofs, attachments, sharing policy | review/handoff; never silently omit |
 
 Rows retain `ROW_ID`, `PARENT_ROW_ID`, sibling order, and hierarchy depth.
 Stable row IDs are natural-key candidates. Dates and calculated row numbers are
@@ -103,6 +109,44 @@ Computed values are parity targets, not substitutes for live calculations.
 
 Do not call a migration complete because baseline values match while formulas
 were frozen.
+
+## Automation workflow capture and translation
+
+The REST automation-rules endpoint is insufficient: it omits multistep
+workflows. After the first router pass, execute every call in
+`workflow-capture-plan.json` with Smartsheet MCP `get_workflows`, following
+`last_key` until absent. Materialize the specified output contract with an
+unbroken page cursor chain and ordered workflow IDs, then rerun:
+
+```bash
+python scripts/migrate.py plan <source-label> \
+  --scope asset|workspace \
+  --snapshot <workdir>/source-snapshot.json \
+  --automation-workflows <workdir>/automation-workflows.json \
+  --out-dir <enriched-workdir>
+```
+
+The enriched snapshot hash includes the full workflow trees. The translator
+emits Sigma effect intents for:
+
+| Smartsheet behavior | Sigma route |
+|---|---|
+| email/notification | notification action effect |
+| conditions / if-else | conditional action sequence |
+| API/HTTP call | API-call effect; connector credential handoff |
+| change/clear/assign/record-date | input-table update effect |
+| copy row | input-table insert effect |
+| move row | insert-then-delete scaffold with transactional parity |
+| approval/update request | input state + notification + user-action scaffold |
+| schedule/date trigger | scheduled automated action; timezone/cron confirmation |
+| row/cell change trigger | external event bridge to a Sigma webhook |
+
+Smartsheet MCP does not return reminder workflows, so a manual reminder
+inventory remains mandatory. Sigma webhook HMAC, API connector credentials,
+publishing, and event-bridge deployment remain explicit handoffs. Unknown node
+types fail into `AUTOMATION_EFFECT_REVIEW_REQUIRED`. Production completion
+requires a complete MCP capture for every sheet; a disposition cannot substitute
+for missing workflow trees.
 
 ## Review gate
 
@@ -148,7 +192,10 @@ python scripts/build-migration.py <workdir>/plan.json \
 
 The bundle contains input-table definitions, data-model intents, workbook code
 representation, captured source rows, a Sigma MCP row-seeding program, a
-source-to-target manifest, and baseline parity targets. Generation is local and
+source-to-target manifest, `automation-intents.json`, and baseline parity
+targets. Workbook artifacts retain these under `deferredAutomationIntents`;
+they are not placed in `contents.automatedActions` until an agent compiles them
+against the tenant's current OpenAPI schema. Generation is local and
 non-mutating. If the source mixes formulas and literals in one column, select
 `--mixed-policy override-wins|formula-wins`; production completion refuses an
 unresolved policy. Review the bundle before executing it with the Sigma tools
@@ -178,8 +225,10 @@ A migration is complete only when:
 2. editable columns remain editable at the intended grain;
 3. live supported formulas match captured computed values;
 4. report rows and dashboard metrics meet parity targets;
-5. every review issue has source-bound evidence;
-6. source-to-target IDs and user handoffs are recorded.
+5. every captured automation has a target sequence or verified disposition;
+6. automated triggers/effects pass dry-run and live side-effect checks;
+7. every review issue has source-bound evidence;
+8. source-to-target IDs and user handoffs are recorded.
 
 Smartsheet sharing is not Sigma row-level security. Inventory access metadata,
 but require the destination owner to choose Sigma folder/workbook permissions

@@ -95,3 +95,23 @@ Record unsupported widget types and any missing source IDs.
 Flatten nested workspace folders while retaining source paths. Build sheets
 first, reports second, and dashboards last. A source sheet referenced by several
 reports is represented once in the data layer.
+
+## Automations
+
+Use Smartsheet MCP `get_workflows`, not only the REST automation-rules endpoint.
+The MCP result preserves multistep `ROOT_NODE` trigger/action trees and supports
+`last_key` pagination. It does not return reminder-type workflows.
+
+The translator preserves the original tree and emits a second typed intent:
+
+- conditions and notifications are code-representation candidates;
+- API calls require a pre-created Sigma API connector and credentials;
+- row updates and copies target Sigma input tables;
+- moves become insert/delete scaffolds with transactional parity;
+- approvals and update requests become input-state and notification scaffolds;
+- schedules require timezone/cron confirmation;
+- row/cell events require a service that forwards the event to a Sigma webhook;
+- unknown node types remain source-specific review items.
+
+The final source hash includes the captured workflow trees. Never reuse review
+evidence after changing a workflow, event bridge, policy, or generated effect.

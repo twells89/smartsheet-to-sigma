@@ -5,9 +5,14 @@ dashboards, or complete workspaces into Sigma.
 
 The migration starts with a source-bound Smartsheet API snapshot. Editable sheet
 columns become Sigma input-table candidates, supported formulas become live
-calculations, and reports and dashboards become workbook plans. Features the API
-cannot fully describe—such as multistep automations—are surfaced as review items
-instead of silently omitted.
+calculations, and reports and dashboards become workbook plans. Features the
+available source tools cannot fully describe—such as reminder workflows—are
+surfaced as review items instead of silently omitted.
+
+When Smartsheet MCP is available, the skill captures full multistep workflow
+trees and emits supported Sigma automated-action intents. Event bridges,
+approvals, reminders, credentials, and webhook authentication remain explicit
+handoffs.
 
 ## Install
 
@@ -58,6 +63,7 @@ for fixture-based and authenticated examples.
 - supported formulas as live Sigma calculation plans;
 - report rows and source lineage;
 - supported dashboard widgets as Sigma workbook element plans;
+- Smartsheet workflow trees as Sigma automated-action intents and parity targets;
 - source/API limitations, automation, sharing, and collaboration features as
   explicit review items;
 - a canonical source hash binding audit, plan, review, and build artifacts.

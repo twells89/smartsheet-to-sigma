@@ -195,15 +195,86 @@ def audit_snapshot(snapshot: dict, discovery: dict) -> dict:
                 "Attachments, discussions, or proofs need an explicit destination.",
                 [asset_label, *(f"{key}={value}" for key, value in collaboration.items())],
             )
-        if features.get("automationRules") or any(
-            "automationrules" in str(item.get("path", "")).lower()
-            for item in asset.get("featureErrors") or []
+        automation = asset.get("automation") or {}
+        capture_status = automation.get("captureStatus")
+        if asset["type"] == "sheet" and capture_status == "missing":
+            add(
+                "AUTOMATION_WORKFLOW_CAPTURE_REQUIRED",
+                "review",
+                "smartsheet-mcp-get-workflows",
+                "Full workflow trees were not captured through Smartsheet MCP.",
+                [asset_label, "tool=get_workflows"],
+            )
+        if asset["type"] == "sheet" and capture_status == "incomplete":
+            add(
+                "AUTOMATION_CAPTURE_INCOMPLETE",
+                "blocker",
+                "finish-get-workflows-pagination",
+                "Smartsheet MCP workflow pagination is incomplete.",
+                [asset_label],
+            )
+        if "REMINDER_WORKFLOWS_NOT_RETURNED" in (
+            automation.get("captureLimitations") or []
+        ):
+            add(
+                "REMINDER_AUTOMATION_MANUAL_REVIEW",
+                "review",
+                "smartsheet-ui-reminder-inventory",
+                "Smartsheet MCP does not return reminder-type workflows.",
+                [asset_label],
+            )
+        for workflow in automation.get("workflows") or []:
+            workflow_label = (
+                f"{asset_label}:workflow:{workflow['sourceWorkflowId']}:"
+                f"{workflow['name']}"
+            )
+            if workflow["trigger"]["route"] == "external-event-bridge":
+                add(
+                    "AUTOMATION_EXTERNAL_TRIGGER_BRIDGE",
+                    "review",
+                    "smartsheet-event-to-sigma-webhook",
+                    "A Smartsheet event trigger needs an external Sigma webhook bridge.",
+                    [workflow_label, workflow["trigger"]["sourceType"]],
+                )
+            if workflow["coverage"] == "SCAFFOLD_REQUIRED":
+                add(
+                    "AUTOMATION_SCAFFOLD_REQUIRED",
+                    "review",
+                    "sigma-action-scaffold",
+                    "The workflow needs a stateful Sigma action scaffold.",
+                    [workflow_label],
+                )
+            elif workflow["coverage"] == "REVIEW_REQUIRED":
+                add(
+                    "AUTOMATION_EFFECT_REVIEW_REQUIRED",
+                    "review",
+                    "source-specific-automation",
+                    "The workflow contains an effect without a safe automatic route.",
+                    [workflow_label],
+                )
+            else:
+                add(
+                    "AUTOMATION_INTENT_VALIDATION_REQUIRED",
+                    "review",
+                    "sigma-code-rep-dry-run-and-runtime-test",
+                    "The emitted effect intent requires compilation, live code-rep validation, and parity.",
+                    [workflow_label, workflow["coverage"]],
+                )
+        if (
+            capture_status != "complete"
+            and (
+                features.get("automationRules")
+                or any(
+                    "automationrules" in str(item.get("path", "")).lower()
+                    for item in asset.get("featureErrors") or []
+                )
+            )
         ):
             add(
                 "AUTOMATION_REVIEW_REQUIRED",
                 "review",
-                "reimplement-and-runtime-test",
-                "Smartsheet automation is not migrated automatically.",
+                "capture-with-smartsheet-mcp",
+                "REST-visible automation has not yet been translated from a full workflow tree.",
                 [asset_label, f"visibleRules={features.get('automationRules', 0)}"],
             )
         if features.get("shares"):
