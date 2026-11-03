@@ -71,7 +71,10 @@ def plan_command(args) -> int:
     stale_capture_plan = out_dir / "workflow-capture-plan.json"
     normalized_capture_path = out_dir / "automation-workflows.normalized.json"
     base_snapshot_path = out_dir / "base-source-snapshot.json"
-    if capture_available and stale_capture_plan.exists():
+    capture_complete = bool(
+        normalized_capture and normalized_capture.get("complete")
+    )
+    if capture_complete and stale_capture_plan.exists():
         stale_capture_plan.unlink()
     if not capture_available:
         for obsolete in (normalized_capture_path, base_snapshot_path):
@@ -87,6 +90,11 @@ def plan_command(args) -> int:
             workflow_capture_plan(snapshot),
         )
     else:
+        if not capture_complete:
+            write_json(
+                out_dir / "workflow-capture-plan.json",
+                workflow_capture_plan(base_snapshot),
+            )
         if not capture_supplied and base_snapshot_path.exists():
             try:
                 existing_base = load_snapshot(base_snapshot_path)

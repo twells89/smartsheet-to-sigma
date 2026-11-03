@@ -145,6 +145,100 @@ class CliTests(unittest.TestCase):
                 (enriched_dir / "base-source-snapshot.json").exists()
             )
 
+    def test_incomplete_workflow_capture_can_be_continued(self):
+        with tempfile.TemporaryDirectory() as temp:
+            out_dir = Path(temp) / "plan"
+            initial = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/migrate.py",
+                    "plan",
+                    "fixture",
+                    "--scope",
+                    "asset",
+                    "--asset-type",
+                    "sheet",
+                    "--snapshot",
+                    str(FIXTURES / "asset-snapshot.json"),
+                    "--out-dir",
+                    str(out_dir),
+                ],
+                cwd=SKILL,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(initial.returncode, 0, initial.stderr)
+            initial_summary = json.loads(initial.stdout)
+            capture = json.loads(
+                (FIXTURES / "automation-workflows.json").read_text()
+            )
+            capture["baseSourceSha256"] = initial_summary["sourceSha256"]
+            capture["sheets"][0]["complete"] = False
+            capture["sheets"][0]["pages"][0]["response_last_key"] = "next-page"
+            capture_path = Path(temp) / "automation-workflows.json"
+            capture_path.write_text(json.dumps(capture))
+
+            incomplete = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/migrate.py",
+                    "plan",
+                    "fixture",
+                    "--scope",
+                    "asset",
+                    "--asset-type",
+                    "sheet",
+                    "--snapshot",
+                    str(out_dir / "source-snapshot.json"),
+                    "--automation-workflows",
+                    str(capture_path),
+                    "--out-dir",
+                    str(out_dir),
+                ],
+                cwd=SKILL,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(incomplete.returncode, 2, incomplete.stderr)
+            summary = json.loads(incomplete.stdout)
+            self.assertTrue((out_dir / "workflow-capture-plan.json").is_file())
+            self.assertTrue(
+                all(
+                    str(out_dir / "base-source-snapshot.json") in command
+                    for command in summary["nextCommands"]
+                )
+            )
+
+            capture["sheets"][0]["complete"] = True
+            capture["sheets"][0]["pages"][0]["response_last_key"] = None
+            capture_path.write_text(json.dumps(capture))
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/migrate.py",
+                    "plan",
+                    "fixture",
+                    "--scope",
+                    "asset",
+                    "--asset-type",
+                    "sheet",
+                    "--snapshot",
+                    str(out_dir / "base-source-snapshot.json"),
+                    "--automation-workflows",
+                    str(capture_path),
+                    "--out-dir",
+                    str(out_dir),
+                ],
+                cwd=SKILL,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertFalse((out_dir / "workflow-capture-plan.json").exists())
+
     def test_blocked_snapshot_returns_two_and_still_writes_audit(self):
         blocked = {
             "schemaVersion": 1,

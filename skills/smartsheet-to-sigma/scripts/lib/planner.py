@@ -30,17 +30,27 @@ def build_plan(snapshot: dict, discovery: dict, audit: dict) -> dict:
         for asset in discovery.get("assets") or []
         if asset.get("type") == "sheet"
     )
+    capture_source = (
+        "<workdir>/base-source-snapshot.json"
+        if workflow_capture_pending
+        and any(
+            (asset.get("raw") or {}).get("_workflowCapture")
+            for asset in snapshot.get("assets") or []
+            if asset.get("type") == "sheet"
+        )
+        else "<workdir>/source-snapshot.json"
+    )
     next_commands = (
         [
             (
                 "python scripts/automation-workflows.py plan "
-                "<workdir>/source-snapshot.json "
+                f"{capture_source} "
                 "--out <workdir>/workflow-capture-plan.json"
             ),
             (
                 "python scripts/migrate.py plan workflow-enriched "
                 f"--scope {snapshot['scope']} "
-                "--snapshot <workdir>/source-snapshot.json "
+                f"--snapshot {capture_source} "
                 "--automation-workflows <workdir>/automation-workflows.json "
                 "--out-dir <workdir>"
             ),
